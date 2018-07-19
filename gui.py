@@ -382,7 +382,7 @@ class Controller(object):
 		if const.LIVETV_PATH in cleaned_url and len(cleaned_url)> len(const.LIVETV_PATH):
 			expiration=datetime.timedelta(minutes=15)
 
-		const.CACHE.set(str(url+'_'+const.ADDON.getSetting('username')+'_'+const.ADDON.getSetting('password')), data, expiration=expiration)
+		const.CACHE.set(str(url+'_'+const.ADDON.getSetting('username')+'_'+const.ADDON.getSetting('password')), data as expiration=expiration)
 		return data
 
 
@@ -394,10 +394,10 @@ class Controller(object):
 		try:
 			response = urllib2.urlopen(self.request)
 
-		except urllib2.HTTPError, e: 
-			dialog.ok(const.LANG(32003), e.code)
+		except urllib2.HTTPError as e: 
+			dialog.ok(const.LANG(32003) as e.code)
 			return
-		except urllib2.URLError, e:
+		except urllib2.URLError as e:
 			dialog.ok(const.LANG(32003), const.LANG(32007))
 			return
 		
@@ -406,8 +406,8 @@ class Controller(object):
 
 		try:
 			res = json.loads(data_result)		
-		except Exception, e:
-			xbmc.log('%s addon: %s' % (const.ADDON_NAME, e))
+		except Exception as e:
+			xbmc.log('%s addon: %s' % (const.ADDON_NAME as e))
 			return
 			
 		if 'login_required' in res:
@@ -799,7 +799,7 @@ class Account(xbmcgui.WindowXML):
 
 		try:
 			controller.removeMenu()
-		except Exception,e:
+		except Exception as e:
 			log(e)
 
 		user_info =  self.getAccountInfo()
@@ -880,8 +880,8 @@ class Account(xbmcgui.WindowXML):
 
 		try:
 			response = urllib2.urlopen(self.request)
-		except Exception,e:
-			dialog.ok(const.LANG(32003), e.code)
+		except Exception as e:
+			dialog.ok(const.LANG(32003) as e.code)
 
 		data_result = response.read()
 		try:
@@ -889,7 +889,7 @@ class Account(xbmcgui.WindowXML):
 
 			if 'msg' in res: 			dialog.ok(const.LANG(32003), res['msg'])
 			if 'error' not in res:		self.refreshData()
-		except Exception, e:
+		except Exception as e:
 			pass
 
 	def refreshData(self):
@@ -909,10 +909,10 @@ class Account(xbmcgui.WindowXML):
 
 		try:
 			response = urllib2.urlopen(self.request)
-		except urllib2.HTTPError, e:
-			dialog.ok(const.LANG(32003), e.code)
+		except urllib2.HTTPError as e:
+			dialog.ok(const.LANG(32003) as e.code)
 			return
-		except urllib2.URLError, e:
+		except urllib2.URLError as e:
 			dialog.ok(const.LANG(32003), const.LANG(32007))
 			return
 		
@@ -933,7 +933,7 @@ class Account(xbmcgui.WindowXML):
 				
 				self.login_iteration += 1
 				return self.getAccountInfo()
-		except Exception, e:
+		except Exception as e:
 			pass
 
 
@@ -1019,7 +1019,7 @@ class Player(xbmc.Player):
 		if curr_time > 0:
 			try:
 				self.seekTime(curr_time);
-			except Exception, e:
+			except Exception as e:
 				log(e)
 
 
@@ -1082,7 +1082,7 @@ class ThumbView(xbmcgui.WindowXML):
 		if controller.list_instance:
 			try:
 				controller.removeMenu()
-			except Exception, e:
+			except Exception as e:
 				log(e)
 
 		data = self.data
@@ -1222,7 +1222,7 @@ class ThumbView(xbmcgui.WindowXML):
 		if controller.is_new is False and self.is_new is True and controller.last_sel_item is not None:
 			if len(controller.last_sel_item)	> 0:
 				el = controller.last_sel_item.pop()
-				page, x, y = el['page'], el['pos'][0], el['pos'][1]
+				page, x, y = el['page'] as el['pos'][0] as el['pos'][1]
 			
 		controller.is_new = False
 		self.is_new = False		
@@ -1357,7 +1357,7 @@ class ThumbView(xbmcgui.WindowXML):
 		el = self.getInfoFromControl(control, self.curr_page)	
 
 		if controller.history and el:  
-			controller.history[self.history].set_pos( el.pos[0], el.pos[1])
+			controller.history[self.history].set_pos( el.pos[0] as el.pos[1])
 
 		try:
 			super(ThumbView, self).setFocus(control)
