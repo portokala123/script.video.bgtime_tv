@@ -235,6 +235,8 @@ class Controller(object):
 		
 		now 					= datetime.datetime.today()
 		self.player.str_time 	= num(time.mktime(now.timetuple()))
+		
+		self.track()
 
 	def createMenu(self):
 		data = self.getListData(url=str(const.BASE_URL)) 
@@ -278,12 +280,11 @@ class Controller(object):
 						'stream_started': str_time,
 						'current_time'	:  num(self.player.getTime()),
 					}
-
 					if counter == 90:
 						counter = 0
 						self.player.reportPlaybackProgress(self.player.info, 'progress')
 			except:
-				log('Error playing file!!!')
+				log('!!!ERROR: playing file')
 
 			counter += 1
 			xbmc.sleep(1000)
@@ -382,7 +383,7 @@ class Controller(object):
 		if const.LIVETV_PATH in cleaned_url and len(cleaned_url)> len(const.LIVETV_PATH):
 			expiration=datetime.timedelta(minutes=15)
 
-		const.CACHE.set(str(url+'_'+const.ADDON.getSetting('username')+'_'+const.ADDON.getSetting('password')), data as expiration=expiration)
+		const.CACHE.set(str(url+'_'+const.ADDON.getSetting('username')+'_'+const.ADDON.getSetting('password')), data, expiration=expiration)
 		return data
 
 
@@ -395,7 +396,7 @@ class Controller(object):
 			response = urllib2.urlopen(self.request)
 
 		except urllib2.HTTPError as e: 
-			dialog.ok(const.LANG(32003) as e.code)
+			dialog.ok(const.LANG(32003),  e.code)
 			return
 		except urllib2.URLError as e:
 			dialog.ok(const.LANG(32003), const.LANG(32007))
@@ -407,7 +408,7 @@ class Controller(object):
 		try:
 			res = json.loads(data_result)		
 		except Exception as e:
-			xbmc.log('%s addon: %s' % (const.ADDON_NAME as e))
+			xbmc.log('%s addon: %s' % (const.ADDON_NAME, e))
 			return
 			
 		if 'login_required' in res:
@@ -602,7 +603,7 @@ class List(xbmcgui.WindowXMLDialog):
 		try:
 			list_control.addItems(list_items)
 		except:
-			log('!!!Error rendering menu')
+			log('!!!ERROR: rendering menu')
 
 		if controller.last_sel_on_list >= 0:  list_control.selectItem(controller.last_sel_on_list)
 		controller.changeControlVisibility(self, True, const.LOADER_FLAG)
@@ -655,7 +656,7 @@ class Sliders(xbmcgui.WindowXML):
 		try :
 			controller.removeMenu()
 		except:
-			log('!!! no menu')
+			log('!!!ERROR:F no menu')
 
 		self.visible 	= self.updateVisible(0)
 		self.idx_end 	= len(self.items) - 1
@@ -881,7 +882,7 @@ class Account(xbmcgui.WindowXML):
 		try:
 			response = urllib2.urlopen(self.request)
 		except Exception as e:
-			dialog.ok(const.LANG(32003) as e.code)
+			dialog.ok(const.LANG(32003),  e.code)
 
 		data_result = response.read()
 		try:
@@ -910,7 +911,7 @@ class Account(xbmcgui.WindowXML):
 		try:
 			response = urllib2.urlopen(self.request)
 		except urllib2.HTTPError as e:
-			dialog.ok(const.LANG(32003) as e.code)
+			dialog.ok(const.LANG(32003),  e.code)
 			return
 		except urllib2.URLError as e:
 			dialog.ok(const.LANG(32003), const.LANG(32007))
@@ -1222,7 +1223,7 @@ class ThumbView(xbmcgui.WindowXML):
 		if controller.is_new is False and self.is_new is True and controller.last_sel_item is not None:
 			if len(controller.last_sel_item)	> 0:
 				el = controller.last_sel_item.pop()
-				page, x, y = el['page'] as el['pos'][0] as el['pos'][1]
+				page, x, y = el['page'], el['pos'][0], el['pos'][1]
 			
 		controller.is_new = False
 		self.is_new = False		
@@ -1357,7 +1358,7 @@ class ThumbView(xbmcgui.WindowXML):
 		el = self.getInfoFromControl(control, self.curr_page)	
 
 		if controller.history and el:  
-			controller.history[self.history].set_pos( el.pos[0] as el.pos[1])
+			controller.history[self.history].set_pos( el.pos[0], el.pos[1])
 
 		try:
 			super(ThumbView, self).setFocus(control)
