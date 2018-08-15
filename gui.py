@@ -117,6 +117,7 @@ class Controller(object):
 
 
 	def changeControlVisibility(self, _self, _bool, controlId, **data):
+		#using flags to change visibility of a group of controls
 		loader = _self.getControl(controlId)
 		loader.setVisible(_bool)
 
@@ -158,6 +159,7 @@ class Controller(object):
 		
 
 			if 'menu' not in rtr:
+
 				if 'key' not in rtr:
 					dialog.ok(const.LANG(32003), rtr['msg'])
 					return				
@@ -184,6 +186,7 @@ class Controller(object):
 				self.tvPlay(rtr, rtr['key'], show_title, 0)
 			
 			else:
+				#if not a video - creating new page 
 				if url == 'menu/news' or  url == 'menu/home':
 					slider = Sliders(rtr)
 					slider.doModal()
@@ -210,12 +213,13 @@ class Controller(object):
 			if info['title'] == 'Success': title =''
 
 		controller.url = url 
+
+		#player.stop does not trigger onPlayBackStopped
 		if self.player:				self.player.stopPlayer()
 	
 		self.player 				= Player()
 
 		self.player.tracking_key 	= info['tracking_key'] if 'tracking_key' in info else ''
-		self.player.is_live  		= self.isLive(url, info['tracking_key']);
 		self.player.is_playing 		= True
 		self.player.resume 			= curr_time if curr_time else 0
 		
@@ -230,15 +234,49 @@ class Controller(object):
 			xbmc.sleep(500)
 
 		# if video doesn't start because of inputstream_adaptive 
+		# inputstream_adaptive  works from 17 and over
 		if not self.player.isPlaying():
 			self.player.play(url, xbmcgui.ListItem(label=show_title + ' ' + title))
 		
 		now 					= datetime.datetime.today()
 		self.player.str_time 	= num(time.mktime(now.timetuple()))
 		
+		#start listening to the player
 		self.track()
 
+	def track(self):
+		if not self.player:
+			return
+
+		tracking_key = self.player.tracking_key
+		str_time = self.player.str_time
+		counter = 0
+
+
+		while self.player and self.player.is_playing:
+			try:
+				if self.player.isPlaying():
+					self.player.info = {
+						'key'			: tracking_key,
+						'stream_started': str_time,
+						'current_time'	:  num(self.player.getTime()),
+					}
+					if counter == 90:
+						counter = 0
+						self.player.reportPlaybackProgress(self.player.info, 'progress')
+			except:
+				log('!!!ERROR: playing file')
+
+			counter += 1
+			xbmc.sleep(1000)
+
+		del self.player
+
+
 	def createMenu(self):
+		# getting the list data and
+		# creating the list used for the menu
+
 		data = self.getListData(url=str(const.BASE_URL)) 
 		if not data : return
 
@@ -263,52 +301,7 @@ class Controller(object):
 
 
 		self.menu_list = list_items
-
-
-	def track(self):
-		if not self.player:
-			return
-
-		tracking_key = self.player.tracking_key
-		str_time = self.player.str_time
-		counter = 0
-		while self.player and self.player.is_playing:
-			try:
-				if self.player.isPlaying():
-					self.player.info = {
-						'key'			: tracking_key,
-						'stream_started': str_time,
-						'current_time'	:  num(self.player.getTime()),
-					}
-					if counter == 90:
-						counter = 0
-						self.player.reportPlaybackProgress(self.player.info, 'progress')
-			except:
-				log('!!!ERROR: playing file')
-
-			counter += 1
-			xbmc.sleep(1000)
-
-		del self.player
-
-	def isLive(self, url, key):
-		if const.LIVETV_PATH in url:
-			return True
-
-		if key is None: return False
-		arr = key.split('_')
-		now = datetime.datetime.today()
-		now = num(time.mktime(now.timetuple()))
-		if len(arr) >= 2:
-			try: 
-				int(arr[-1])
-				int(arr[-2])
-				if int(arr[-1]) > now and int(arr[-2])<now:
-					return True
-			except: 
-				return True
-
-		return False
+	
 
 	def renderMenu(self, _self):
 
@@ -316,6 +309,7 @@ class Controller(object):
 			self.createMenu()
 		self.list_instance = List()
 
+		#removing as not to duplicate
 		self.removeMenu()
 		self.list_instance.doModal()
 
@@ -342,6 +336,8 @@ class Controller(object):
 		if not token: return
 		return token
 
+
+	#getListData  handles data request for pages and the response 
 	def getListData(self, url, data=None, is_menu=None):
 
 		if(not const.ADDON.getSetting('username')) or (not const.ADDON.getSetting('password')):
@@ -387,7 +383,7 @@ class Controller(object):
 		return data
 
 
-	
+	#hadnles the request  
 	def getData(self, url, data):
 		send = urllib.urlencode(data)
 		self.request = urllib2.Request(url, send, headers={"User-Agent" :  xbmc.getUserAgent()+ " BGTimeTV Addon " + str(const.VERSION)})
@@ -417,10 +413,12 @@ class Controller(object):
 
 				if ans :
 					login = self.login.logIN();
-				
+					
 					if login:
 						if self.last_page_url:
 							self.handleURLFromClick(self.last_page_url)
+						# else:
+						# 	self.handleURLFromClick(const.BASE_URL+'/home')
 				else:
 					return
 		
@@ -542,24 +540,27 @@ controller.login = Login()
 # ##									LIST VIEW 											##
 # ##########################################################################################
 
+# view used for the menu
+# the list handles up and down automatically
 
 class List(xbmcgui.WindowXMLDialog):
 	C_LIST = 6001
 	C_CANCEL = 6004
+
+	#C_CANCEL is large fully transparent button on the right so the menu can be closed with a click outside of it  
 	def __new__(cls):
+		#specifing the proper xml
+		#it is in /resources/skins/Default/720p/....
 		return super(List, cls).__new__(cls, 'script-video-bgtime-tv-list.xml',const.ADDONPATH)
 
 	def __init__(self):
 		super(List, self).__init__()
-		# self.swapInProgress = False
 
 	def onInit(self):
-		# control = self.getControl(self.C_LIST)
 		self.updateList(controller.menu_list)		
 		self.setFocus(self.getControl(self.C_LIST))
 
 	def onClick(self, controlId):
-		# controller.changeControlVisibility(self, False, const.LOADER_FLAG)
 		if controlId == self.C_CANCEL:
 			self.close()
 
@@ -615,7 +616,8 @@ class List(xbmcgui.WindowXMLDialog):
 # ##########################################################################################
 
 
-
+#multiple horizontal list create sliders view for home page and news
+# the list handle left and right automatically 
 class Sliders(xbmcgui.WindowXML):
 	C_LIST 			= 7001
 	C_TITLE 		= 7009
@@ -657,6 +659,7 @@ class Sliders(xbmcgui.WindowXML):
 			controller.removeMenu()
 		except:
 			log('!!!ERROR:F no menu')
+	
 
 		self.visible 	= self.updateVisible(0)
 		self.idx_end 	= len(self.items) - 1
@@ -733,6 +736,8 @@ class Sliders(xbmcgui.WindowXML):
 		controller.loading 			= False
 		curr_row 					= 0
 		
+
+		#using visible for the verticle scrolling of rows 
 		if not visible:					visible = self.visible		
 
 		for idx in visible:
@@ -772,7 +777,6 @@ class Sliders(xbmcgui.WindowXML):
 # ##########################################################################################
 # ##							  ACCOUNT VIEW  		     							  ##
 # ##########################################################################################
-
 
 
 class Account(xbmcgui.WindowXML):
@@ -900,7 +904,6 @@ class Account(xbmcgui.WindowXML):
 	
 
 	def getAccountInfo(self):
-		# data ={	'token'			: controller.getToken() }
 		send = urllib.urlencode({	
 			'token'			: controller.getToken() 
 		})
@@ -947,7 +950,6 @@ class Account(xbmcgui.WindowXML):
 class Player(xbmc.Player):
 	info 			= None
 	tracking_key 	= None
-	is_live 		= None
 	is_playing 		= False
 	player_playing 	= "script-video-bgtime-tv-player-pause"
 	player_paused 	= "script-video-bgtime-tv-player-play"
@@ -981,14 +983,11 @@ class Player(xbmc.Player):
 	def onPlayBackPaused(self):
 		pass
 
-	def is_overlay(self):
-		return xbmc.getCondVisibility("VideoPlayer.UsingOverlays")
 
 	def is_playback_paused(self):
 		return bool(xbmc.getCondVisibility("Player.Paused"))
 
 	def onPlayBackStopped(self):
-
 		if self.info is not None:
 			self.reportPlaybackProgress(self.info, 'stop')
 			
@@ -1030,6 +1029,9 @@ class Player(xbmc.Player):
 ##									THUMB VIEW 											##
 ##########################################################################################
 
+# Grid view for displaying content
+# Moving focus on the x and y and scrolling vertically
+# Some pages have Filter button on row -1
 
 class ThumbView(xbmcgui.WindowXML):
 	C_TITLE 	= 6104
@@ -1124,7 +1126,6 @@ class ThumbView(xbmcgui.WindowXML):
 			
 			controls 			= list()
 			self.page_list 		= list()
-			# self.COLS 			= num((WIDTH-GRID_WIDTH-2*20)/(self.BOX_X+20))
 			self.COLS 			= num((WIDTH-2*20)/(self.BOX_X+20))
 			self.ROWS 			= num((HEIGHT-self.TITLE_Y-self.DESC_Y)/self.BOX_Y)
 			panel_image 		='script-video-bgtime-tv-grey.png';
