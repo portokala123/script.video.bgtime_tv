@@ -13,8 +13,8 @@ VERSION         = ADDON.getAddonInfo('version')
 LANG            = ADDON.getLocalizedString
 ADDON_NAME      = ADDON.getAddonInfo('name')
 ID              = ADDON.getAddonInfo('id')
-PROFILE_PATH    = xbmc.translatePath( ADDON.getAddonInfo('profile') ).decode("utf-8")
-ADDONPATH       = xbmc.translatePath( ADDON.getAddonInfo('path') ).decode("utf-8")
+PROFILE_PATH    = xbmc.translatePath( ADDON.getAddonInfo('profile') )
+ADDONPATH       = xbmc.translatePath( ADDON.getAddonInfo('path') )
 
 TOKEN_FILEPATH  = PROFILE_PATH + '/token.txt'
 

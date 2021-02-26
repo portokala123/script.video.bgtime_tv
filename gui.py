@@ -5,7 +5,7 @@ import xbmcaddon
 import xbmcgui
 from simplecache import  SimpleCache
 import const
-import urllib2 
+import urllib.request, urllib.parse, urllib.error
 import urllib
 import sys
 import json
@@ -13,8 +13,7 @@ import os.path
 import datetime
 import time
 # import threading
-reload(sys)  
-sys.setdefaultencoding('UTF8')
+
 WIDTH 					= 1280
 HEIGHT 					= 720
 
@@ -42,8 +41,8 @@ def cleanUpUrl(url):
 
 def mi2hex(mi_color):
 	mi_color = int(mi_color)
-	r = mi_color/(256*256)
-	g = (mi_color - (r*256*256))/256
+	r = mi_color // (256*256)
+	g = (mi_color - (r*256*256)) // 256
 	b = mi_color - (r*256*256) - (g*256)
 
 	return "0xFF{0:02x}{1:02x}{2:02x}".format(r,g,b).upper()
@@ -132,8 +131,9 @@ class Controller(object):
 	
 		self.loading = True
 
-		if(xbmc.getCondVisibility("System.HasModalDialog")):				pass
-		elif( xbmc.getCondVisibility("System.HasActiveModalDialog") ) :		
+		if(xbmc.getCondVisibility("System.HasModalDialog")):
+			pass
+		elif( xbmc.getCondVisibility("System.HasActiveModalDialog") ):
 			xbmc.executebuiltin('Dialog.Close(all, true)')
 		
 		if url == 'menu':
@@ -153,13 +153,15 @@ class Controller(object):
 			title=''
 			items=[]
 			rtr = self.getListData(url=url)
-			if rtr is None: 								return
-			if url == 'menu/livetv_alternative':			rtr = self.getListData(url=rtr['menu'][0]['key'])
-			if 'search' in url and show_title is not None: 	rtr['title_prev'] = const.LANG(32009)+ show_title
+			if rtr is None:
+				return
+			if url == 'menu/livetv_alternative':
+				rtr = self.getListData(url=rtr['menu'][0]['key'])
+			if 'search' in url and show_title is not None:
+				rtr['title_prev'] = const.LANG(32009)+ show_title
 		
 
 			if 'menu' not in rtr:
-
 				if 'key' not in rtr:
 					dialog.ok(const.LANG(32003), rtr['msg'])
 					return				
@@ -220,6 +222,7 @@ class Controller(object):
 		self.player 				= Player()
 
 		self.player.tracking_key 	= info['tracking_key'] if 'tracking_key' in info else ''
+		self.player.is_live  		= self.isLive(url, info['tracking_key']);
 		self.player.is_playing 		= True
 		self.player.resume 			= curr_time if curr_time else 0
 		
@@ -227,7 +230,7 @@ class Controller(object):
 		#set inputstream.adaptive
 		if _has_inputstream(): 
 			li = xbmcgui.ListItem(label=show_title + ' ' + title)
-			li.setProperty('inputstreamaddon', 'inputstream.adaptive')
+			li.setProperty('inputstream', 'inputstream.adaptive')
 			li.setProperty('inputstream.adaptive.manifest_type', 'hls')
 
 			self.player.play(url, li)
@@ -241,42 +244,9 @@ class Controller(object):
 		now 					= datetime.datetime.today()
 		self.player.str_time 	= num(time.mktime(now.timetuple()))
 		
-		#start listening to the player
 		self.track()
 
-	def track(self):
-		if not self.player:
-			return
-
-		tracking_key = self.player.tracking_key
-		str_time = self.player.str_time
-		counter = 0
-
-
-		while self.player and self.player.is_playing:
-			try:
-				if self.player.isPlaying():
-					self.player.info = {
-						'key'			: tracking_key,
-						'stream_started': str_time,
-						'current_time'	:  num(self.player.getTime()),
-					}
-					if counter == 90:
-						counter = 0
-						self.player.reportPlaybackProgress(self.player.info, 'progress')
-			except:
-				log('!!!ERROR: playing file')
-
-			counter += 1
-			xbmc.sleep(1000)
-
-		del self.player
-
-
 	def createMenu(self):
-		# getting the list data and
-		# creating the list used for the menu
-
 		data = self.getListData(url=str(const.BASE_URL)) 
 		if not data : return
 
@@ -294,14 +264,60 @@ class Controller(object):
 				menulist.append({'title': 'изход', 'key':'logout'})
 				
 				for (key, val) in enumerate(menulist):
-					label = val['title'].encode('utf-8')
+					label = val['title']
 
 					item = xbmcgui.ListItem(u"{0}".format( label), label2=u"{0}".format(val['key']))
 					list_items.append(item)
 
 
 		self.menu_list = list_items
-	
+
+
+	def track(self):
+		if not self.player:
+			return
+
+		tracking_key = self.player.tracking_key
+		str_time = self.player.str_time
+		counter = 0
+		while self.player and self.player.is_playing:
+			try:
+				if self.player.isPlaying():
+					self.player.info = {
+						'key'			: tracking_key,
+						'stream_started': str_time,
+						'current_time'	:  num(self.player.getTime()),
+					}
+					if counter == 90:
+						counter = 0
+						self.player.reportPlaybackProgress(self.player.info, 'progress')
+			except:
+				log('!!!ERROR: playing file')
+
+			counter += 1
+			xbmc.sleep(1000)
+		
+		if self.player:
+			del self.player
+
+	def isLive(self, url, key):
+		if const.LIVETV_PATH in url:
+			return True
+
+		if key is None: return False
+		arr = key.split('_')
+		now = datetime.datetime.today()
+		now = num(time.mktime(now.timetuple()))
+		if len(arr) >= 2:
+			try: 
+				int(arr[-1])
+				int(arr[-2])
+				if int(arr[-1]) > now and int(arr[-2])<now:
+					return True
+			except: 
+				return True
+
+		return False
 
 	def renderMenu(self, _self):
 
@@ -309,7 +325,6 @@ class Controller(object):
 			self.createMenu()
 		self.list_instance = List()
 
-		#removing as not to duplicate
 		self.removeMenu()
 		self.list_instance.doModal()
 
@@ -336,8 +351,6 @@ class Controller(object):
 		if not token: return
 		return token
 
-
-	#getListData  handles data request for pages and the response 
 	def getListData(self, url, data=None, is_menu=None):
 
 		if(not const.ADDON.getSetting('username')) or (not const.ADDON.getSetting('password')):
@@ -383,18 +396,18 @@ class Controller(object):
 		return data
 
 
-	#hadnles the request  
+	
 	def getData(self, url, data):
-		send = urllib.urlencode(data)
-		self.request = urllib2.Request(url, send, headers={"User-Agent" :  xbmc.getUserAgent()+ " BGTimeTV Addon " + str(const.VERSION)})
+		send = urllib.parse.urlencode(data).encode()
+		self.request = urllib.request.Request(url, send, headers={"User-Agent" :  xbmc.getUserAgent()+ " BGTimeTV Addon " + str(const.VERSION)})
 
 		try:
-			response = urllib2.urlopen(self.request)
+			response = urllib.request.urlopen(self.request)
 
-		except urllib2.HTTPError as e: 
+		except urllib.error.HTTPError as e: 
 			dialog.ok(const.LANG(32003),  e.code)
 			return
-		except urllib2.URLError as e:
+		except urllib.error.URLError as e:
 			dialog.ok(const.LANG(32003), const.LANG(32007))
 			return
 		
@@ -413,12 +426,10 @@ class Controller(object):
 
 				if ans :
 					login = self.login.logIN();
-					
+				
 					if login:
 						if self.last_page_url:
 							self.handleURLFromClick(self.last_page_url)
-						# else:
-						# 	self.handleURLFromClick(const.BASE_URL+'/home')
 				else:
 					return
 		
@@ -430,22 +441,22 @@ class Controller(object):
 				return
 				
 			if 'login' in res and res['login'] == 'yes':
-				dialog.ok(const.LANG(32003), res['msg'].encode('utf-8'))
+				dialog.ok(const.LANG(32003), res['msg'])
 				return
 	
 			else:
 				 
 				if 'status' in res and res['status']== 204:
-					dialog.ok(const.LANG(32003), res['msg'].encode('utf-8'))
+					dialog.ok(const.LANG(32003), res['msg'])
 					return
 				if 'subscription_required' in res and res['subscription_required'] == True:
-					dialog.ok(const.LANG(32003), res['msg'].encode('utf-8'))
+					dialog.ok(const.LANG(32003), res['msg'])
 					return
 				if 'search' in url:
-					dialog.ok(const.LANG(32003), res['msg'].encode('utf-8'))
+					dialog.ok(const.LANG(32003), res['msg'])
 					return
 
-				dialog.ok(const.LANG(32003), res['msg'].encode('utf-8'))
+				dialog.ok(const.LANG(32003), res['msg'])
 				return
 		
 		return res
@@ -659,7 +670,6 @@ class Sliders(xbmcgui.WindowXML):
 			controller.removeMenu()
 		except:
 			log('!!!ERROR:F no menu')
-	
 
 		self.visible 	= self.updateVisible(0)
 		self.idx_end 	= len(self.items) - 1
@@ -750,15 +760,17 @@ class Sliders(xbmcgui.WindowXML):
 				break 
 
 			title = self.getControl(self.T_LIST + curr_row)
-			title.setLabel('[B]'+curr_list['title'].upper()+'[/B]'.encode('utf-8'))
+			title.setLabel('[B]'+curr_list['title'].upper()+'[/B]')
 			self.getControl(self.I_LIST + curr_row).setLabel(str(idx))
 			
 			items = list()
 			curr_row += 1
 			for (key, val) in enumerate(curr_list['items']):
-				label = val['title'].encode('utf-8')
+				label = val['title']
 
-				item = xbmcgui.ListItem(label=u"{0}".format( label), label2=val['key'], iconImage=val['thumb'])
+				item = xbmcgui.ListItem(label=u"{0}".format( label), label2=val['key'])
+				item.setArt({'icon': val['thumb']})
+				
 				items.append(item)
 
 			_list.reset()
@@ -777,6 +789,7 @@ class Sliders(xbmcgui.WindowXML):
 # ##########################################################################################
 # ##							  ACCOUNT VIEW  		     							  ##
 # ##########################################################################################
+
 
 
 class Account(xbmcgui.WindowXML):
@@ -873,18 +886,18 @@ class Account(xbmcgui.WindowXML):
 			dialog.ok(const.LANG(32003),const.LANG(32210))
 
 
-		send = urllib.urlencode({	
+		send = urllib.parse.urlencode({	
 			'token'			: controller.getToken(),
 			'pwd': psw,
 			'new_pwd_1': new_pwd_1,
 			'new_pwd_2': new_pwd_2
-		})
+		}).encode()
 
 		url = const.SITE_PATH +'settings/update'
-		self.request = urllib2.Request(url,send,  headers={"User-Agent" :  xbmc.getUserAgent()+ " BGTimeTV Addon " + str(const.VERSION)})
+		self.request = urllib.request.Request(url,send,  headers={"User-Agent" :  xbmc.getUserAgent()+ " BGTimeTV Addon " + str(const.VERSION)})
 
 		try:
-			response = urllib2.urlopen(self.request)
+			response = urllib.request.urlopen(self.request)
 		except Exception as e:
 			dialog.ok(const.LANG(32003),  e.code)
 
@@ -904,19 +917,21 @@ class Account(xbmcgui.WindowXML):
 	
 
 	def getAccountInfo(self):
-		send = urllib.urlencode({	
+		# data ={	'token'			: controller.getToken() }
+		send = urllib.parse.urlencode({	
 			'token'			: controller.getToken() 
-		})
+		}).encode()
+		
 		url = const.SITE_PATH +'settings/info'
 
-		self.request = urllib2.Request(url,send,  headers={"User-Agent" :  xbmc.getUserAgent()+ " BGTimeTV Addon " + str(const.VERSION)})
+		self.request = urllib.request.Request(url,send,  headers={"User-Agent" :  xbmc.getUserAgent()+ " BGTimeTV Addon " + str(const.VERSION)})
 
 		try:
-			response = urllib2.urlopen(self.request)
-		except urllib2.HTTPError as e:
+			response = urllib.request.urlopen(self.request)
+		except urllib.error.HTTPError as e:
 			dialog.ok(const.LANG(32003),  e.code)
 			return
-		except urllib2.URLError as e:
+		except urllib.error.URLError as e:
 			dialog.ok(const.LANG(32003), const.LANG(32007))
 			return
 		
@@ -924,7 +939,7 @@ class Account(xbmcgui.WindowXML):
 		res = json.loads(data_result)
 		
 		if 'msg' in res:
-				log(res['msg'].encode('utf-8'))
+				log(res['msg'])
 
 		try:
 			if 'data' in res:
@@ -950,6 +965,7 @@ class Account(xbmcgui.WindowXML):
 class Player(xbmc.Player):
 	info 			= None
 	tracking_key 	= None
+	is_live 		= None
 	is_playing 		= False
 	player_playing 	= "script-video-bgtime-tv-player-pause"
 	player_paused 	= "script-video-bgtime-tv-player-play"
@@ -969,12 +985,20 @@ class Player(xbmc.Player):
 
 		if self.tracking_key is not None:
 			now = datetime.datetime.today()
-			str_time = int(time.mktime(now.timetuple()))
+			
+			str_time = 0
+			current_time = 0
+			
+			if self.isPlaying():
+				str_time = int(time.mktime(now.timetuple()))
+				current_time = int(num(self.getTime()))
+			
 			self.info = {
 				'key'			: self.tracking_key,
 				'stream_started': str_time,
-				'current_time'	: num(self.getTime()),
+				'current_time'	: current_time,
 			}
+			
 			self.reportPlaybackProgress(self.info, 'start')
 
 	def onPlayBackResumed(self):
@@ -983,11 +1007,14 @@ class Player(xbmc.Player):
 	def onPlayBackPaused(self):
 		pass
 
+	def is_overlay(self):
+		return xbmc.getCondVisibility("VideoPlayer.UsingOverlays")
 
 	def is_playback_paused(self):
 		return bool(xbmc.getCondVisibility("Player.Paused"))
 
 	def onPlayBackStopped(self):
+
 		if self.info is not None:
 			self.reportPlaybackProgress(self.info, 'stop')
 			
@@ -1011,8 +1038,8 @@ class Player(xbmc.Player):
 				'current_time'	: str(num(info['current_time'])),
 				'action'		: action,
 			}
-			send = urllib.urlencode(data)
-			request = urllib2.Request(const.SITE_PATH +'tracking/report_playback', send, headers={"User-Agent" :  xbmc.getUserAgent()+ " BGTimeTV Addon " + str(const.VERSION)})
+			send = urllib.parse.urlencode(data).encode()
+			request = urllib.request.Request(const.SITE_PATH +'tracking/report_playback', send, headers={"User-Agent" :  xbmc.getUserAgent()+ " BGTimeTV Addon " + str(const.VERSION)})
 	
 
 	def checkTime(self, curr_time):
@@ -1098,34 +1125,35 @@ class ThumbView(xbmcgui.WindowXML):
 				self.ROWS = page.rows
 				self.COLS = page.cols
 				self.filters = page.filters
-
-
-		if self.pages :
+		
+		if self.pages:
 			if self.filters:
 				controller.changeControlVisibility(self, False, const.FILTER_FLAG)
-
+			
 			self.updateView(self.curr_page, controller.history[self.history].x, controller.history[self.history].y)
 			return
 		else:
-		
 			controller.last_page_url = url
-			if not data: pass
-			if url == 'menu/bgmovies' or url[-4:] == 'voyo':	
+			if not data:
+				pass
+			
+			if url == 'menu/bgmovies' or url[-4:] == 'voyo':
 				self.BOX_X, self.BOX_Y = (190, 236+self.TEXT_Y)
 
 			if 'livetv_alternative' in url or 'program' in url and 'bg_color' in data['menu'][0]:	
 				self.BOX_X = self.BOX_Y;
 				img_width = self.BOX_X;
-
+				
 				if len(data['title_prev']) <=2:
 					data['title_prev'] 	= const.LANG(32010)+' '+ data['title_prev']+ const.LANG(32011)
-
+			
 			if 'title_prev' in data:
 				control = self.getControl(self.C_TITLE)
 				control.setLabel(u"{0}".format('[B]'+data['title_prev'].upper()+'[/B]'))
 			
 			controls 			= list()
 			self.page_list 		= list()
+			
 			self.COLS 			= num((WIDTH-2*20)/(self.BOX_X+20))
 			self.ROWS 			= num((HEIGHT-self.TITLE_Y-self.DESC_Y)/self.BOX_Y)
 			panel_image 		='script-video-bgtime-tv-grey.png';
@@ -1147,7 +1175,7 @@ class ThumbView(xbmcgui.WindowXML):
 				for k, v in enumerate(filters):
 					key =  v['key_full'] if 'key_full' in v else v['key']
 					self.filters.append({
-						'title'	: str(v['title'].encode('utf-8')),
+						'title'	: str(v['title']),
 						'url'	: key
 					})
 
@@ -1155,28 +1183,28 @@ class ThumbView(xbmcgui.WindowXML):
 				controller.changeControlVisibility(self, False, const.FILTER_FLAG)
 		
 			for k, v in enumerate(data['menu']):
-				y_offset = y+y_step
-			
+				y_offset = y + y_step
+				
 				if k % (self.COLS*self.ROWS) == 0 and k > 0:
 					self.pages.append(self.page_list)
 					self.page_list = list()
 					y = self.TITLE_Y+self.DESC_Y
-
+					
 					counter_y, counter_x =(0, 0)
-
+				
 				if 'title' in v: 			title = v['title']
 				elif 'start' in v:  		title  = str(datetime.datetime.fromtimestamp( intv['start'] ).strftime('%d.%M.%y %H:%M'))
-
+				
 				title 					= u"{0}".format(title)
 				bg_color 				= '0xFF000000'
 				img_width 				= self.BOX_X
 				center = 0
-	
-				if 'bg_color' in  v and 'is_voyo' not in v:		
+				
+				if 'bg_color' in  v and 'is_voyo' not in v:
 					bg_color 				= mi2hex(v['bg_color'])
 					panel_image 			= 'script-video-bgtime-tv-white07.png'
-
-					title = u"{0}".format(v['desc'])if v['desc']  else '' 
+					
+					title = u"{0}".format(v['desc'])if v['desc']  else ''
 					title = title.replace('\n', ' ')
 					
 				control 	= xbmcgui.ControlButton(x=x-10, y=y-10, width=self.BOX_X+20, height=self.BOX_Y+20, label='', focusTexture=os.path.join(const.IMAGE_PATH, 'script-video-bgtime-tv-gblue10.png'), noFocusTexture=os.path.join(const.IMAGE_PATH,  'script-video-bgtime-tv-darker-no.png'))
@@ -1199,11 +1227,11 @@ class ThumbView(xbmcgui.WindowXML):
 					'pos'			: [ counter_x, counter_y],
 					'page' 			: len(self.pages)
 				}
-
+				
 				self.page_list.append(const.ControlAndInfo(control, info))
 				
 				counter_x , x= counter_x+1, x+x_step
-
+				
 				if counter_x >= self.COLS or x > WIDTH - self.BOX_X:
 					x, y, counter_x, counter_y = 60, y+y_step, 0, counter_y+1
 
@@ -1218,8 +1246,10 @@ class ThumbView(xbmcgui.WindowXML):
 	def updateView(self, page = None, x=None, y=None):
 		controller.loading = False
 
-		if page is None:							page = 0
-		if page < 0 or page>= len(self.pages): 		return 
+		if page is None:
+			page = 0
+		if page < 0 or page>= len(self.pages):
+			return 
 		
 		if controller.is_new is False and self.is_new is True and controller.last_sel_item is not None:
 			if len(controller.last_sel_item)	> 0:
@@ -1231,7 +1261,8 @@ class ThumbView(xbmcgui.WindowXML):
 
 		try: 		
 			self.clearView(self.curr_page)
-		except:				 	pass 
+		except:
+			pass 
 		
 		controls = [elem.control  for elem in self.pages[page] ]+[el  for elem in self.pages[page] for el in elem.sec_controls]
 		self.DEFAULT_CONTROL = controls[0]
@@ -1245,11 +1276,12 @@ class ThumbView(xbmcgui.WindowXML):
 				except:
 					log('Error adding contorols!!')
 
-		if page < self.curr_page: 					 y = self.pages[page][-1].pos[1]
+		if self.curr_page is not None and page < self.curr_page:
+			y = self.pages[page][-1].pos[1]
 		
 		self.curr_page = page
 		controller.changeControlVisibility(self, True, const.LOADER_FLAG)
-	
+		
 		if controller.history:
 			controller.history[self.history].set_idx(page)
 			controller.history[self.history].set_pos(x, y)
@@ -1281,7 +1313,7 @@ class ThumbView(xbmcgui.WindowXML):
 					pass
 	
 	def onClick(self, controlId):
-		control 	= self.getControl(controlId)
+		control = self.getControl(controlId)
 
 		if controlId == 6001:
 			controller.renderMenu(self)
@@ -1304,20 +1336,26 @@ class ThumbView(xbmcgui.WindowXML):
 			select 	= dialog.select(const.LANG(32006), filters)
 			if select < 0: return
 			
-			if controller.last_sel_item is None: 		controller.last_sel_item = [{'page':self.curr_page,'pos': [0,0]}]
-			else:									controller.last_sel_item = controller.last_sel_item + [{'page':self.curr_page,'pos': [0,0]}]
+			if controller.last_sel_item is None:
+				controller.last_sel_item = [{'page':self.curr_page,'pos': [0,0]}]
+			else:
+				controller.last_sel_item = controller.last_sel_item + [{'page':self.curr_page,'pos': [0,0]}]
 			
 			controller.handleURLFromClick(self.filters[num(select)]['url'], self.filters[num(select)]['title'], self)
 			return
 
-			
-		curr_elem 	= self.getInfoFromControl(control, self.curr_page)
-
-		if controller.last_sel_item is None: 		controller.last_sel_item = [{'page':self.curr_page,'pos': curr_elem.pos}]
-		else:									controller.last_sel_item = controller.last_sel_item + [{'page':self.curr_page,'pos': curr_elem.pos}]
-
+		
+		curr_elem = self.getInfoFromControl(control, self.curr_page)
+		
+		if curr_elem is None:
+			return
+		
 		self.clearView(self.curr_page)
-		if curr_elem is None: return
+		
+		if controller.last_sel_item is None:
+			controller.last_sel_item = [{'page':self.curr_page,'pos': curr_elem.pos}]
+		else:
+			controller.last_sel_item = controller.last_sel_item + [{'page':self.curr_page,'pos': curr_elem.pos}]
 
 		controller.handleURLFromClick(curr_elem.url, curr_elem.title, self)
 
@@ -1341,10 +1379,12 @@ class ThumbView(xbmcgui.WindowXML):
 		return
 
 	def getInfoFromControl(self, control, page):
+		new_elem = None
 		for elem in self.pages[page]:
-			if elem.control == control:
-				return elem
-		return None
+			if elem.control.getId() == control.getId():
+				new_elem = elem
+		
+		return new_elem
 
 	def close(self):
 		super(ThumbView, self).close()
@@ -1381,13 +1421,16 @@ class ThumbView(xbmcgui.WindowXML):
 				focused_elem = self.getFocus()
 			except:
 				'excpt'
-				if self.last_position is not None:											focused_elem = self.getControlFromPosition(self.last_position[0], self.last_position[1], self.curr_page)
-				elif self.DEFAULT_CONTROL is not None:										focused_elem = self.DEFAULT_CONTROL
+				if self.last_position is not None:
+					focused_elem = self.getControlFromPosition(self.last_position[0], self.last_position[1], self.curr_page)
+				elif self.DEFAULT_CONTROL is not None:
+					focused_elem = self.DEFAULT_CONTROL
 
-			if focused_elem is None: 														return
-		
+			if focused_elem is None:
+				return
+			
 			curr_el = self.getInfoFromControl(focused_elem, self.curr_page)
-	
+			
 			
 			if curr_el is None:
 				if focused_elem.getId()!=const.FILTER and focused_elem.getId()!=controller.menu_id:								return
@@ -1409,10 +1452,11 @@ class ThumbView(xbmcgui.WindowXML):
 				self.right(focused_elem, curr_el,curr_el.pos[0], curr_el.pos[1], curr_el.page )
 
 			elif act_id == const.ACTION_DOWN:
-				if focused_elem.getId() == const.FILTER:																return self.setFocus(self.last_focused_elem.control)	
+				if focused_elem.getId() == const.FILTER:
+					return self.setFocus(self.last_focused_elem.control)
 				self.down(focused_elem, curr_el,curr_el.pos[0], curr_el.pos[1], curr_el.page )
 
-			if   act_id in [const.ACTION_MOUSE_WHEEL_UP, const.ACTION_GESTURE_SWIPE_DOWN, const.ACTION_PAGE_UP]:  
+			if act_id in [const.ACTION_MOUSE_WHEEL_UP, const.ACTION_GESTURE_SWIPE_DOWN, const.ACTION_PAGE_UP]:  
 				self.updateView(self.curr_page-1)
 
 			elif act_id in [const.ACTION_MOUSE_WHEEL_DOWN, const.ACTION_GESTURE_SWIPE_UP, const.ACTION_PAGE_DOWN]:  
@@ -1423,7 +1467,8 @@ class ThumbView(xbmcgui.WindowXML):
 	# Search acording to coordinates
 	def up(self, cont, curr_el, x, y, page):
 		if cont is None:
-			if self.DEFAULT_CONTROL: 													return self.setFocus()
+			if self.DEFAULT_CONTROL:
+				return self.setFocus()
 
 		if page == 0 and y==0:		
 			if self.has_filter == True:	
@@ -1436,8 +1481,10 @@ class ThumbView(xbmcgui.WindowXML):
 
 	def down(self, cont, curr_el, x, y, page):
 		if page == len(self.pages)-1:
-			if y == self.pages[page][-1].pos[1]:										return
-			if y == self.pages[page][-1].pos[1]-1 and x >  self.pages[page][-1].pos[0]: return
+			if y == self.pages[page][-1].pos[1]:
+				return
+			if y == self.pages[page][-1].pos[1]-1 and x >  self.pages[page][-1].pos[0]:
+				return
 		
 		if cont is None:			
 			return self.setFocus()
@@ -1449,7 +1496,8 @@ class ThumbView(xbmcgui.WindowXML):
 
 	def left(self, cont, curr_el, x, y, page):
 		if cont is None: 
-			if self.DEFAULT_CONTROL: 													return self.setFocus()
+			if self.DEFAULT_CONTROL:
+				return self.setFocus()
 		if x <= 0: 
 			controller.renderMenu(self)
 			self.setFocus(const.MENU_CONTROL)
@@ -1458,12 +1506,15 @@ class ThumbView(xbmcgui.WindowXML):
 		return self.setFocus(  self.getControlFromPosition(x-1, y, page)  )		
 
 	def right(self, cont, curr_el, x, y, page):
-		if cont is None: 																return self.setFocus()
+		if cont is None:
+			return self.setFocus()
 
 		last = self.pages[-1][-1]
-		if page == len(self.pages) - 1 and y == last.pos[1] and x==last.pos[0]:			return self.setFocus(cont)
+		if page == len(self.pages) - 1 and y == last.pos[1] and x==last.pos[0]:
+			return self.setFocus(cont)
 		if x >= self.COLS-1: 
-			if y+1 <= self.ROWS-1: 														return self.setFocus(  self.getControlFromPosition(0 , y+1, page)  )	
+			if y+1 <= self.ROWS-1:
+				return self.setFocus(  self.getControlFromPosition(0 , y+1, page)  )	
 			else:																		
 				return self.updateView(self.curr_page+1, 0)
 
